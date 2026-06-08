@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#c4956a">
+<meta name="apple-mobile-web-app-title" content="每日纸条">
+<meta name="version" content="2.0.0">
+<title>每日纸条 · 给小贾的</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&display=swap');
+  @keyframes fu{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{margin:0;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  ::-webkit-scrollbar{display:none}
+  #root{min-height:100vh}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+// ============= 数据准备 =============
+const POOLS = DATA.pools;
+const NOTES = DATA.notes;
+const POOL_KEYS = Object.keys(POOLS);
+const ALL_CARDS = POOL_KEYS.flatMap(k => POOLS[k].cards);
+const PC = {"feminist": "#8B6914", "literary": "#5a7a5a", "comedian": "#E8553A", "philosopher": "#6A5ACD", "business": "#2F6B4F", "architecture": "#8B4513", "math_cs": "#4169E1", "film": "#8B008B", "journalism": "#B8860B", "espionage": "#2F4F4F", "environment": "#228B22", "fashion": "#C71585", "education": "#CD853F", "sports": "#B22222", "medicine": "#008B8B", "science": "#4B0082"};
+
+// ============= 工具函数 =============
+function srand(s){return()=>{s=(s*16807)%2147483647;return(s-1)/2147483646}}
+const START=new Date(2026,4,25);
+function dayN(){return Math.max(0,Math.floor((new Date()-START)/864e5))}
+function fmtDate(){return new Date().toLocaleDateString("zh-CN",{year:"numeric",month:"long",day:"numeric",weekday:"long"})}
+
+function daily(d){
+  const r=srand(d*31+7);
+  // 从所有人物卡里抽4张（不重复pool优先，但不强制）
+  const shuffled=[...ALL_CARDS].sort(()=>r()-0.5);
+  const picked=[];
+  const usedPools=new Set();
+  // 优先从不同pool里各抽一张
+  for(const c of shuffled){
+    if(picked.length>=4)break;
+    if(!usedPools.has(c.pool)){
+      picked.push({...c,cType:"p"});
+      usedPools.add(c.pool);
+    }
+  }
+  // 如果不够4张（不太可能），从剩余的补
+  for(const c of shuffled){
+    if(picked.length>=4)break;
+    if(!picked.find(p=>p.id===c.id)){
+      picked.push({...c,cType:"p"});
+    }
+  }
+  // 1张纸条
+  const note=NOTES[Math.floor(r()*NOTES.length)];
+  picked.push({...note,cType:"n"});
+  return picked;
+}
+
+function getPoolColor(pool){return PC[pool]||"#888"}
+
+// ============= 主应用 =============
+function App(){
+  const[page,setPage]=useState("splash");
+  const[guideSeen]=useState(()=>{try{return localStorage.getItem("dn_guide2")==="1"}catch(e){return false}});
+  const[tab,setTab]=useState("today");
+  const[favs,setFavs]=useState(()=>{try{return JSON.parse(localStorage.getItem("dn_favs2"))||{}}catch(e){return{}}});
+  const saveFavs=(fn)=>{setFavs(p=>{const n=typeof fn==="function"?fn(p):fn;try{localStorage.setItem("dn_favs2",JSON.stringify(n))}catch(e){}return n})};
+  const[open,setOpen]=useState(null);
+  const[browsePool,setBrowsePool]=useState(POOL_KEYS[0]);
+  const dn=dayN(),cards=useMemo(()=>daily(dn),[dn]);
+  const tF=id=>saveFavs(p=>{if(p[id]){const n={...p};delete n[id];return n}return{...p,[id]:new Date().toISOString()}});
+  const iF=id=>!!favs[id];
+  const ff="'Noto Serif SC','Source Han Serif SC',Georgia,serif";
+  const bg="linear-gradient(168deg,#faf6f0,#f5ede3 40%,#ede4d8)";
+
+  // ============= 开屏 =============
+  if(page==="splash")return(
+    <div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",fontFamily:ff}}>
+      <div style={{maxWidth:400,textAlign:"center",animation:"fu 1.2s ease-out"}}>
+        <div style={{width:80,height:80,margin:"0 auto 32px",borderRadius:"50%",background:"linear-gradient(135deg,#d4a574,#c4956a)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,boxShadow:"0 8px 32px rgba(180,140,100,.3)"}}>📜</div>
+        <h1 style={{fontSize:22,fontWeight:400,color:"#4a3728",marginBottom:8,letterSpacing:4}}>每日纸条</h1>
+        <p style={{fontSize:13,color:"#9a8577",marginBottom:8,letterSpacing:2}}>给小贾的</p>
+        <p style={{fontSize:12,color:"#b0a090",marginBottom:32}}>{fmtDate()}</p>
+        <div style={{background:"rgba(255,255,255,.6)",borderRadius:16,padding:"32px 24px",marginBottom:32,backdropFilter:"blur(10px)",border:"1px solid rgba(180,160,140,.2)",textAlign:"left",lineHeight:2,fontSize:15,color:"#5a4a3a",position:"relative"}}>
+          <div style={{position:"absolute",top:16,left:20,fontSize:32,opacity:.15,color:"#8a7a6a"}}>{"\u201c"}</div>
+          <p style={{margin:0,textIndent:"2em"}}>小时候我每天给您写一张小纸条，抄一个笑话，想逗您笑一笑。</p>
+          <p style={{margin:"12px 0 0",textIndent:"2em"}}>现在长大了，换一种纸条，换一种内容。</p>
+          <p style={{margin:"12px 0 0",textIndent:"2em"}}>但还是想每天给您递一张。</p>
+          <div style={{textAlign:"right",marginTop:20,fontSize:13,color:"#9a8577"}}>—— 卓茜</div>
+        </div>
+        <button onClick={()=>{try{localStorage.setItem("dn_guide2","1")}catch(e){}setPage(guideSeen?"main":"guide")}} style={{background:"linear-gradient(135deg,#c4956a,#b8866a)",color:"#fff",border:"none",borderRadius:28,padding:"14px 48px",fontSize:15,letterSpacing:3,cursor:"pointer",boxShadow:"0 4px 20px rgba(180,130,90,.35)",fontFamily:"inherit"}}>翻开今天的纸条</button>
+      </div>
+    </div>
+  );
+
+  // ============= 引导页 =============
+  if(page==="guide")return(
+    <div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",fontFamily:ff}}>
+      <div style={{maxWidth:400,animation:"fu .8s ease-out"}}>
+        <h2 style={{fontSize:18,fontWeight:400,color:"#4a3728",textAlign:"center",marginBottom:24,letterSpacing:3}}>使用说明</h2>
+        <div style={{background:"rgba(255,255,255,.6)",borderRadius:16,padding:"24px 20px",backdropFilter:"blur(10px)",border:"1px solid rgba(180,160,140,.2)",lineHeight:2,fontSize:14,color:"#5a4a3a"}}>
+          <p style={{marginBottom:16}}>每天为您准备了 <strong>5 张纸条</strong>：</p>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{width:28,height:28,borderRadius:8,background:"#c4956a",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>4</span><span><strong>人物卡</strong> —— 从思想家、文学家、脱口秀、科学、历史等 {POOL_KEYS.length} 个领域随机抽取</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><span style={{width:28,height:28,borderRadius:8,background:"#E8553A",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>1</span><span><strong>今日纸条</strong> —— 女性主义冷知识、金句、毒舌段子</span></div>
+          <div style={{borderTop:"1px solid rgba(180,160,140,.2)",paddingTop:16,marginTop:8}}>
+            <p style={{marginBottom:8}}>📚 <strong>翻阅</strong> —— 按领域浏览全部 {ALL_CARDS.length} 张人物卡</p>
+            <p>📦 <strong>纸条盒</strong> —— 点 ♡ 收藏喜欢的内容，随时回看</p>
+          </div>
+        </div>
+        <div style={{textAlign:"center",marginTop:24}}><button onClick={()=>setPage("main")} style={{background:"linear-gradient(135deg,#c4956a,#b8866a)",color:"#fff",border:"none",borderRadius:28,padding:"12px 40px",fontSize:14,letterSpacing:2,cursor:"pointer",boxShadow:"0 4px 20px rgba(180,130,90,.35)",fontFamily:"inherit"}}>开始</button></div>
+      </div>
+    </div>
+  );
+
+  // ============= 通用组件 =============
+  const Name=({card})=>{
+    const cn=card.cn||card.name||"";
+    const en=card.name||"";
+    const both=cn&&en&&cn!==en;
+    return <><span style={{fontSize:17,fontWeight:500,color:"#3a2a1a",fontFamily:ff}}>{cn||en}</span>{both&&<span style={{fontSize:12,color:"#a09080",marginLeft:6}}>{en}</span>}</>;
+  };
+
+  const cardLabel=(card,idx)=>{
+    if(card.cType==="n")return "今日纸条";
+    const pool=POOLS[card.pool];
+    return pool?pool.label:"人物";
+  };
+
+  // ============= 卡片预览 =============
+  const CP=({card,idx})=>(
+    <div onClick={()=>setOpen(card)} style={{background:card.cType==="n"?"linear-gradient(135deg,#fff9f0,#fef5e7)":"rgba(255,255,255,.7)",borderRadius:16,padding:20,cursor:"pointer",backdropFilter:"blur(10px)",border:card.cType==="n"?"1px dashed #d4b896":"1px solid rgba(180,160,140,.15)",boxShadow:"0 2px 12px rgba(100,80,60,.06)",animation:`fu .5s ease ${idx*.1}s both`,position:"relative"}}>
+      <div style={{fontSize:10,color:"#b0a090",letterSpacing:2,marginBottom:10}}>{cardLabel(card,idx)}</div>
+      {card.cType==="p"&&<>
+        <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+          <Name card={card}/>
+          <span style={{fontSize:10,color:"#fff",background:getPoolColor(card.pool),padding:"2px 8px",borderRadius:8}}>{POOLS[card.pool]?.label||card.pool}</span>
+        </div>
+        {(card.era||card.reg)&&<p style={{fontSize:12,color:"#9a8a7a",marginBottom:10}}>{[card.era,card.reg].filter(Boolean).join(" · ")}</p>}
+        {card.q&&<p style={{fontSize:13,color:"#6a5a4a",fontStyle:"italic",lineHeight:1.7,borderLeft:`2px solid ${getPoolColor(card.pool)}`,paddingLeft:12}}>{card.q}</p>}
+      </>}
+      {card.cType==="n"&&<div style={{textAlign:"center",padding:"8px 0"}}>
+        <div style={{fontSize:28,marginBottom:12}}>{card.m}</div>
+        <p style={{fontSize:14,color:"#5a4a3a",lineHeight:1.9,textAlign:"left"}}>{card.txt&&card.txt.length>60?card.txt.slice(0,60)+"……":card.txt}</p>
+        <p style={{fontSize:11,color:"#c0b0a0",marginTop:12,letterSpacing:3}}>点击展开</p>
+      </div>}
+      {iF(card.id)&&<div style={{position:"absolute",top:12,right:14,fontSize:14,color:"#c4956a"}}>{"♥"}</div>}
+    </div>
+  );
+
+  // ============= 详情弹窗 =============
+  const Modal=()=>{if(!open)return null;const c=open;
+    return(<div style={{position:"fixed",inset:0,background:"rgba(40,30,20,.6)",backdropFilter:"blur(8px)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setOpen(null)}>
+      <div style={{background:"linear-gradient(170deg,#faf8f4,#f5f0e8)",borderRadius:20,padding:"32px 24px",maxWidth:420,width:"100%",maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(40,30,20,.3)",position:"relative"}} onClick={e=>e.stopPropagation()}>
+        <button onClick={()=>setOpen(null)} style={{position:"absolute",top:16,right:16,background:"none",border:"none",fontSize:20,color:"#9a8a7a",cursor:"pointer"}}>✕</button>
+        <button onClick={()=>tF(c.id)} style={{position:"absolute",top:16,left:16,background:"none",border:"none",fontSize:22,cursor:"pointer",color:iF(c.id)?"#c4956a":"#ccc"}}>{iF(c.id)?"♥":"♡"}</button>
+        <div style={{paddingTop:24}}>
+          {c.cType==="p"&&<>
+            <div style={{display:"inline-block",background:getPoolColor(c.pool),color:"#fff",fontSize:11,padding:"3px 10px",borderRadius:12,marginBottom:16,letterSpacing:1}}>{POOLS[c.pool]?.label||c.pool}</div>
+            <h2 style={{fontSize:20,color:"#3a2a1a",fontWeight:500,marginBottom:4,fontFamily:ff}}>{c.cn||c.name}</h2>
+            <p style={{fontSize:13,color:"#9a8a7a",marginBottom:16}}>{[c.cn!==c.name?c.name:"",c.era,c.reg,c.sch].filter(Boolean).join(" · ")}</p>
+            {c.q&&<blockquote style={{borderLeft:`3px solid ${getPoolColor(c.pool)}`,paddingLeft:16,margin:"0 0 20px",fontStyle:"italic",fontSize:14,color:"#6a5a4a",lineHeight:1.8}}>{c.q}</blockquote>}
+            {(c.body||c.core)&&<p style={{fontSize:14,color:"#4a3a2a",lineHeight:2,marginBottom:20}}>{c.body||c.core}</p>}
+            {c.work&&<p style={{fontSize:12,color:"#7a6a5a",marginBottom:12}}>代表作：{c.work}</p>}
+            {c.ref&&<p style={{fontSize:12,color:"#a09080",lineHeight:1.8}}>📖 延伸阅读：{c.ref}</p>}
+          </>}
+          {c.cType==="n"&&<div style={{textAlign:"center",paddingTop:8}}>
+            <div style={{fontSize:40,marginBottom:20}}>{c.m}</div>
+            <p style={{fontSize:15,color:"#4a3a2a",lineHeight:2,textAlign:"left",padding:"0 8px"}}>{c.txt}</p>
+            <div style={{marginTop:24,fontSize:11,color:"#b0a090",letterSpacing:2}}>—— 小时候的纸条</div>
+          </div>}
+        </div>
+      </div>
+    </div>);
+  };
+
+  // ============= Browse 页面 =============
+  const Browse=()=>{
+    const pool=POOLS[browsePool];
+    const poolCards=pool?pool.cards:[];
+    return(<div>
+      {/* Pool选择器 - 横向滚动 */}
+      <div style={{overflowX:"auto",marginBottom:16,paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
+        <div style={{display:"flex",gap:6,minWidth:"max-content"}}>
+          {POOL_KEYS.map(k=>{
+            const p=POOLS[k];
+            const active=browsePool===k;
+            return(<button key={k} onClick={()=>setBrowsePool(k)} style={{
+              padding:"8px 14px",borderRadius:12,border:"none",fontSize:12,
+              fontFamily:ff,letterSpacing:1,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
+              background:active?getPoolColor(k):"rgba(255,255,255,.5)",
+              color:active?"#fff":"#8a7a6a",
+              boxShadow:active?"0 2px 8px rgba(0,0,0,.15)":"none",
+              transition:"all .2s"
+            }}>{p.label} <span style={{opacity:.7,fontSize:10}}>({p.cards.length})</span></button>);
+          })}
+        </div>
+      </div>
+      {/* 卡片列表 */}
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {poolCards.map(c=>(<div key={c.id} onClick={()=>setOpen({...c,cType:"p"})} style={{
+          background:"rgba(255,255,255,.6)",borderRadius:14,padding:"16px 18px",
+          cursor:"pointer",borderLeft:`3px solid ${getPoolColor(browsePool)}`
+        }}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}><Name card={c}/></div>
+            {iF(c.id)&&<span style={{color:"#c4956a",fontSize:14}}>♥</span>}
+          </div>
+          <p style={{fontSize:12,color:"#9a8a7a",marginTop:4}}>{[c.era,c.reg,c.sch,c.tp].filter(Boolean).join(" · ")}</p>
+          {c.q&&<p style={{fontSize:12,color:"#8a7a6a",marginTop:6,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.q}</p>}
+        </div>))}
+      </div>
+    </div>);
+  };
+
+  // ============= 纸条盒 =============
+  const Favs=()=>{
+    const allSearchable=[...ALL_CARDS.map(c=>({...c,cType:"p"})),...NOTES.map(c=>({...c,cType:"n"}))];
+    const fav=allSearchable.filter(c=>favs[c.id]).sort((a,b)=>new Date(favs[b.id])-new Date(favs[a.id]));
+    if(!fav.length)return(<div style={{textAlign:"center",padding:"60px 20px",color:"#b0a090"}}><div style={{fontSize:48,marginBottom:16}}>📦</div><p style={{fontSize:14,lineHeight:1.8}}>纸条盒还是空的</p><p style={{fontSize:13,marginTop:8}}>翻开卡片，点 ♡ 收藏喜欢的内容</p></div>);
+    return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <p style={{fontSize:12,color:"#b0a090",letterSpacing:2,marginBottom:4}}>已收藏 {fav.length} 张纸条</p>
+      {fav.map((c,i)=>(<div key={c.id}><div style={{fontSize:10,color:"#c0b0a0",marginBottom:4,paddingLeft:4}}>收藏于 {new Date(favs[c.id]).toLocaleDateString("zh-CN",{month:"long",day:"numeric"})}</div><CP card={c} idx={Math.min(i,4)}/></div>))}
+    </div>);
+  };
+
+  // ============= 主页面 =============
+  return(<div style={{minHeight:"100vh",background:bg,fontFamily:ff,paddingBottom:80}}>
+    <div style={{padding:"24px 20px 16px",textAlign:"center"}}>
+      <h1 style={{fontSize:18,fontWeight:400,color:"#4a3728",letterSpacing:4,margin:0}}>{tab==="today"?"今日纸条":tab==="browse"?"自由翻阅":"纸条盒"}</h1>
+      {tab==="today"&&<><p style={{fontSize:12,color:"#b0a090",marginTop:6,letterSpacing:1}}>{fmtDate()}</p><p style={{fontSize:11,color:"#c4956a",marginTop:4}}>第 {dn+1} 天</p></>}
+    </div>
+    <div style={{padding:"0 16px"}}>
+      {tab==="today"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>{cards.map((c,i)=><CP key={c.id+i} card={c} idx={i}/>)}</div>}
+      {tab==="browse"&&<Browse/>}
+      {tab==="favorites"&&<Favs/>}
+    </div>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(250,246,240,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(180,160,140,.15)",display:"flex",justifyContent:"space-around",padding:"10px 0",zIndex:50}}>
+      {[["today","📜","今日"],["browse","📚","翻阅"],["favorites","📦","纸条盒"]].map(([k,ic,lb])=>(<button key={k} onClick={()=>setTab(k)} style={{background:"none",border:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"4px 16px",opacity:tab===k?1:.45}}><span style={{fontSize:20}}>{ic}</span><span style={{fontSize:10,color:"#5a4a3a",letterSpacing:1,fontFamily:ff}}>{lb}</span></button>))}
+    </div>
+    <Modal/>
+  </div>);
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
