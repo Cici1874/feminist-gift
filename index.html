@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#c4956a">
 <meta name="apple-mobile-web-app-title" content="每日纸条">
-<meta name="version" content="2.0.5">
+<meta name="version" content="2.0.6">
 <title>每日纸条 · 给小贾的</title>
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
@@ -262,70 +262,79 @@ function App() {
   // 地图touch事件：监听browseMode，地图显示时挂载原生事件(non-passive)
   useEffect(() => {
     if (browseMode !== "map") return;
-    // 延迟一帧等DOM渲染完
     const timer = setTimeout(() => {
       const el = mapContRef.current;
       if (!el) return;
       const clampV = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
       const getDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+      const pr = pinchRef;
       const onTS = e => {
         const t = e.touches;
         const mt = mapTRef.current;
         if (t.length === 2) {
           e.preventDefault();
-          pinchRef.current = {
-            dist: getDist(t),
-            scale: mt.scale,
-            x: mt.x,
-            y: mt.y,
-            dragging: false,
-            startX: 0,
-            startY: 0
+          // 双指开始：记录起始距离和当前transform作为基准
+          pr.current = {
+            mode: "pinch",
+            dist0: getDist(t),
+            s0: mt.scale,
+            x0: mt.x,
+            y0: mt.y,
+            cx0: (t[0].clientX + t[1].clientX) / 2,
+            cy0: (t[0].clientY + t[1].clientY) / 2
           };
-        } else if (t.length === 1 && mt.scale > 1) {
+        } else if (t.length === 1 && mt.scale > 1.02) {
           e.preventDefault();
-          pinchRef.current = {
-            ...pinchRef.current,
-            dragging: true,
-            startX: t[0].clientX - mt.x,
-            startY: t[0].clientY - mt.y
+          // 单指开始：记录手指起点和当前偏移作为基准
+          pr.current = {
+            mode: "pan",
+            fx0: t[0].clientX,
+            fy0: t[0].clientY,
+            x0: mt.x,
+            y0: mt.y,
+            s0: mt.scale
           };
         }
       };
       const onTM = e => {
         const t = e.touches;
-        const mt = mapTRef.current;
-        if (t.length === 2) {
+        const p = pr.current;
+        if (!p.mode) return;
+        if (t.length === 2 && p.mode === "pinch") {
           e.preventDefault();
           const newDist = getDist(t);
-          const ratio = newDist / pinchRef.current.dist;
-          const newScale = clampV(pinchRef.current.scale * ratio, 1, 5);
+          const ratio = newDist / p.dist0;
+          const newScale = clampV(p.s0 * ratio, 1, 5);
           const rect = el.getBoundingClientRect();
-          const mx = (t[0].clientX + t[1].clientX) / 2 - rect.left;
-          const my = (t[0].clientY + t[1].clientY) / 2 - rect.top;
-          const maxPan = (newScale - 1) * Math.max(rect.width, rect.height) / 2;
-          let nx = clampV(pinchRef.current.x + (mx - rect.width / 2) * (1 - ratio), -maxPan, maxPan);
-          let ny = clampV(pinchRef.current.y + (my - rect.height / 2) * (1 - ratio), -maxPan, maxPan);
+          // 缩放中心偏移
+          const cx = (t[0].clientX + t[1].clientX) / 2;
+          const cy = (t[0].clientY + t[1].clientY) / 2;
+          const maxP = (newScale - 1) * Math.max(rect.width, rect.height) / 2;
+          let nx = clampV(p.x0 + (cx - p.cx0), -maxP, maxP);
+          let ny = clampV(p.y0 + (cy - p.cy0), -maxP, maxP);
           setMapT({
             scale: newScale,
             x: nx,
             y: ny
           });
-        } else if (t.length === 1 && pinchRef.current.dragging) {
+        } else if (t.length === 1 && p.mode === "pan") {
           e.preventDefault();
           const rect = el.getBoundingClientRect();
-          const maxPan = (mt.scale - 1) * Math.max(rect.width, rect.height) / 2;
-          let nx = clampV(t[0].clientX - pinchRef.current.startX, -maxPan, maxPan);
-          let ny = clampV(t[0].clientY - pinchRef.current.startY, -maxPan, maxPan);
+          const maxP = (p.s0 - 1) * Math.max(rect.width, rect.height) / 2;
+          // 手指移动量 = 当前位置 - 起始位置，加上起始偏移
+          let nx = clampV(p.x0 + (t[0].clientX - p.fx0), -maxP, maxP);
+          let ny = clampV(p.y0 + (t[0].clientY - p.fy0), -maxP, maxP);
           setMapT({
-            scale: mt.scale,
+            scale: p.s0,
             x: nx,
             y: ny
           });
         }
       };
       const onTE = () => {
-        pinchRef.current.dragging = false;
+        pr.current = {
+          mode: null
+        };
       };
       const opts = {
         passive: false
